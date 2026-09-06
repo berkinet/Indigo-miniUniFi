@@ -288,7 +288,19 @@ class Plugin(indigo.PluginBase):
             self.logger.debug(f"{device.name}: UniFi Controller Getting Sites")
 
             url = sites_url.format(base_url)
-            response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+            try:
+                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+            except requests.exceptions.Timeout as err:
+                self.logger.error(f"UniFi Controller Get Sites Timeout Error: {err}")
+                device.updateStateOnServer(key='status', value="Timeout Error")
+                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                return
+            except Exception as err:
+                self.logger.error(f"UniFi Controller Get Sites Connection Error: {err}")
+                device.updateStateOnServer(key='status', value="Connection Error")
+                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                return
+
             if not response.status_code == requests.codes.ok:
                 self.logger.error(f"UniFi Controller Get Sites Error: {response.status_code}")
                 device.updateStateOnServer(key='status', value="Sites Error")
@@ -306,7 +318,19 @@ class Plugin(indigo.PluginBase):
                 # Get active Clients for site
 
                 url = active_url.format(base_url, site['name'])
-                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+                try:
+                    response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+                except requests.exceptions.Timeout as err:
+                    self.logger.error(f"UniFi Controller Get Active Clients Timeout Error: {err}")
+                    device.updateStateOnServer(key='status', value="Timeout Error")
+                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                    return
+                except Exception as err:
+                    self.logger.error(f"UniFi Controller Get Active Clients Connection Error: {err}")
+                    device.updateStateOnServer(key='status', value="Connection Error")
+                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                    return
+
                 if not response.status_code == requests.codes.ok:
                     self.logger.error(u"UniFi Controller Get Active Clients Error: {}".format(response.status_code))
                     device.updateStateOnServer(key='status', value="Get Client Error")
@@ -326,7 +350,19 @@ class Plugin(indigo.PluginBase):
                 # Get UniFi Devices for the site
 
                 url = device_url.format(base_url, site['name'])
-                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+                try:
+                    response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+                except requests.exceptions.Timeout as err:
+                    self.logger.error(f"UniFi Controller Get Devices Timeout Error: {err}")
+                    device.updateStateOnServer(key='status', value="Timeout Error")
+                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                    return
+                except Exception as err:
+                    self.logger.error(f"UniFi Controller Get Devices Connection Error: {err}")
+                    device.updateStateOnServer(key='status', value="Connection Error")
+                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                    return
+
                 if not response.status_code == requests.codes.ok:
                     self.logger.error(f"UniFi Controller Get Devices Error: {response.status_code}")
                 response.raise_for_status()
