@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 ####################
 
+import indigo   # noqa
 import time
-import requests
+import requests # noqa
 import logging
 import json
 
@@ -90,9 +91,6 @@ class Plugin(indigo.PluginBase):
 
     def startup(self):
         self.logger.info("Starting miniUniFi")
-
-    def shutdown(self):
-        self.logger.info("Shutting down miniUniFi")
 
     def runConcurrentThread(self):
         self.logger.debug("Starting runConcurrentThread")
@@ -252,7 +250,7 @@ class Plugin(indigo.PluginBase):
                 cookies = {"unifises": cookies_dict.get('unifises'), "csrf_token": cookies_dict.get('csrf_token')}
 
             url = status_url.format(base_url)
-            response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
+            response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=10.0)
             if response.status_code != requests.codes.ok:
                 self.logger.error(f"UniFi Controller Status Error: {response.status_code}")
                 device.updateStateOnServer(key='status', value="Status Error")
@@ -362,7 +360,7 @@ class Plugin(indigo.PluginBase):
 
             try:
                 device.updateStatesOnServer(states_list)
-            except TypeError as err:
+            except TypeError as _err:
                 self.logger.error(f"{device.name}: invalid state type in states_list: {states_list}")
 
         if device.deviceTypeId == "unifiClient":
@@ -439,7 +437,7 @@ class Plugin(indigo.PluginBase):
             device.stateListOrDisplayStateIdChanged()
             try:
                 device.updateStatesOnServer(states_list)
-            except TypeError as err:
+            except TypeError as _err:
                 self.logger.error(f"{device.name}: invalid state type in states_list: {states_list}")
 
         if device.deviceTypeId == "unifiDevice":
@@ -507,47 +505,32 @@ class Plugin(indigo.PluginBase):
         self.logger.threaddebug(f"{device.name}: getDeviceStateList, base state_list = {state_list}")
 
         if device.id in self.unifi_clients and self.unifi_clients[device.id]:
-
-            for item in self.unifi_clients[device.id]:
-                key = item['key']
-                value = item['value']
-                if isinstance(value, bool):
-                    dynamic_state = self.getDeviceStateDictForBoolTrueFalseType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Bool state {key}, value {value}")
-                elif isinstance(value, (float, int)):
-                    dynamic_state = self.getDeviceStateDictForNumberType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Number state {key}, value {value}")
-                elif isinstance(value, str):
-                    dynamic_state = self.getDeviceStateDictForStringType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding String state {key}, value {value}")
-                else:
-                    self.logger.debug(f"{device.name}: getDeviceStateList, unknown type for key = {key}, value {value}")
-                    continue
-
-                state_list.append(dynamic_state)
+            self.extract_device_states(device, state_list)
 
         elif device.id in self.unifi_devices and self.unifi_devices[device.id]:
-
-            for item in self.unifi_devices[device.id]:
-                key = item['key']
-                value = item['value']
-                if isinstance(value, bool):
-                    dynamic_state = self.getDeviceStateDictForBoolTrueFalseType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Bool state {key}, value {value}")
-                elif isinstance(value, (float, int)):
-                    dynamic_state = self.getDeviceStateDictForNumberType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Number state {key}, value {value}")
-                elif isinstance(value, str):
-                    dynamic_state = self.getDeviceStateDictForStringType(str(key), str(key), str(key))
-                    self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding String state {key}, value {value}")
-                else:
-                    self.logger.debug(f"{device.name}: getDeviceStateList, unknown type for key = {key}, value {value}")
-                    continue
-
-                state_list.append(dynamic_state)
+            self.extract_device_states(device, state_list)
 
         self.logger.threaddebug(f"{device.name}: getDeviceStateList, final state_list = {state_list}")
         return state_list
+
+    def extract_device_states(self, device, state_list):
+        for item in self.unifi_clients[device.id]:
+            key = item['key']
+            value = item['value']
+            if isinstance(value, bool):
+                dynamic_state = self.getDeviceStateDictForBoolTrueFalseType(str(key), str(key), str(key))
+                self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Bool state {key}, value {value}")
+            elif isinstance(value, (float, int)):
+                dynamic_state = self.getDeviceStateDictForNumberType(str(key), str(key), str(key))
+                self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding Number state {key}, value {value}")
+            elif isinstance(value, str):
+                dynamic_state = self.getDeviceStateDictForStringType(str(key), str(key), str(key))
+                self.logger.threaddebug(f"{device.name}: getDeviceStateList, adding String state {key}, value {value}")
+            else:
+                self.logger.debug(f"{device.name}: getDeviceStateList, unknown type for key = {key}, value {value}")
+                continue
+
+            state_list.append(dynamic_state)
 
     ########################################
     #
@@ -555,7 +538,7 @@ class Plugin(indigo.PluginBase):
     #
     ########################################
 
-    def get_controller_list(self, filter="", valuesDict=None, typeId="", targetId=0):
+    def get_controller_list(self, _filter="", valuesDict=None, typeId="", targetId=0):
         self.logger.debug(f"get_controller_list: typeId = {typeId}, targetId = {targetId}, valuesDict = {valuesDict}")
         controller_list = [
             (devID, indigo.devices[devID].name)
@@ -565,7 +548,7 @@ class Plugin(indigo.PluginBase):
         self.logger.threaddebug(f"get_controller_list: controller_list = {controller_list}")
         return controller_list
 
-    def get_site_list(self, filter="", valuesDict=None, typeId="", targetId=0):
+    def get_site_list(self, _filter="", valuesDict=None, typeId="", targetId=0):
         self.logger.debug(f"get_site_list: typeId = {typeId}, targetId = {targetId}, valuesDict = {valuesDict}")
 
         try:
@@ -679,10 +662,10 @@ class Plugin(indigo.PluginBase):
             controller = int(valuesDict['unifi_controller'])
             site = valuesDict['unifi_site']
             uClient = valuesDict['address']
-            client_data = {}
+            _client_data = {}
 
             try:
-                client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
+                _client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
             except (Exception,):
                 self.logger.debug("validateDeviceConfigUi: client_data not found")
             else:
@@ -692,10 +675,10 @@ class Plugin(indigo.PluginBase):
             controller = int(valuesDict['unifi_controller'])
             site = valuesDict['unifi_site']
             uClient = valuesDict['address']
-            device_data = {}
+            _device_data = {}
 
             try:
-                device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uClient]
+                _device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uClient]
             except (Exception,):
                 pass
             else:
@@ -767,12 +750,12 @@ class Plugin(indigo.PluginBase):
     # Plugin Action routines
     # -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-    def restart_device_action(self, action, device):
+    def restart_device_action(self, _action, device):
         self.logger.debug(f"{device.name}: restart_device_action")
         params = {'cmd': "restart", 'mac':device.address}
         self.command_unifi_controller(device, params)
 
-    def power_cycle_port_action(self, plugin_action, device, callerWaitingForResult):
+    def power_cycle_port_action(self, plugin_action, device, _callerWaitingForResult):
         self.logger.debug(f"{device.name}: power_cycle_port_action, props = {plugin_action.props}")
         params = {'cmd': "power-cycle", 'mac':device.address, 'port_idx': int(plugin_action.props['port'])}
         self.command_unifi_controller(device, params)
