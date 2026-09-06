@@ -250,7 +250,19 @@ class Plugin(indigo.PluginBase):
                 cookies = {"unifises": cookies_dict.get('unifises'), "csrf_token": cookies_dict.get('csrf_token')}
 
             url = status_url.format(base_url)
-            response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=10.0)
+            try:
+                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=10.0)
+            except requests.exceptions.Timeout as err:
+                self.logger.error(f"UniFi Controller Status Timeout Error: {err}")
+                device.updateStateOnServer(key='status', value="Timeout Error")
+                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                return
+            except Exception as err:
+                self.logger.error(f"UniFi Controller Status Connection Error: {err}")
+                device.updateStateOnServer(key='status', value="Connection Error")
+                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+                return
+
             if response.status_code != requests.codes.ok:
                 self.logger.error(f"UniFi Controller Status Error: {response.status_code}")
                 device.updateStateOnServer(key='status', value="Status Error")
