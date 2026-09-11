@@ -1,6 +1,10 @@
 # Indigo-miniUniFi
 Minimalistic UniFi plugin for Indigo
 
+This maintained fork uses four-part release numbers such as `2026.0.1.1`: the first
+three parts identify the FlyingDiver upstream version and the fourth identifies the
+fork revision. See [VERSIONING.md](VERSIONING.md).
+
 Allows for monitoring the on/off-line state of network clients on a UniFi based system.  Primary use is presence detection using mobile devices.
 
 | Requirement            |                     |
