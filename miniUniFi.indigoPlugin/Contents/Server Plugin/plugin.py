@@ -576,16 +576,18 @@ class Plugin(indigo.PluginBase):
         self.logger.threaddebug(f"{device.name}: getDeviceStateList, base state_list = {state_list}")
 
         if device.id in self.unifi_clients and self.unifi_clients[device.id]:
-            self.extract_device_states(device, state_list)
+            self.extract_device_states(
+                device, state_list, self.unifi_clients[device.id])
 
         elif device.id in self.unifi_devices and self.unifi_devices[device.id]:
-            self.extract_device_states(device, state_list)
+            self.extract_device_states(
+                device, state_list, self.unifi_devices[device.id])
 
         self.logger.threaddebug(f"{device.name}: getDeviceStateList, final state_list = {state_list}")
         return state_list
 
-    def extract_device_states(self, device, state_list):
-        for item in self.unifi_clients[device.id]:
+    def extract_device_states(self, device, state_list, device_states):
+        for item in device_states:
             key = item['key']
             value = item['value']
             if isinstance(value, bool):

@@ -19,6 +19,18 @@ class FakePluginBase:
     class StopThread(Exception):
         pass
 
+    def getDeviceStateList(self, _device):
+        return [{'key': 'controllerAvailable'}]
+
+    def getDeviceStateDictForBoolTrueFalseType(self, key, *_labels):
+        return {'key': key, 'type': 'bool'}
+
+    def getDeviceStateDictForNumberType(self, key, *_labels):
+        return {'key': key, 'type': 'number'}
+
+    def getDeviceStateDictForStringType(self, key, *_labels):
+        return {'key': key, 'type': 'string'}
+
 
 fake_indigo = types.SimpleNamespace(
     PluginBase=FakePluginBase,
@@ -157,6 +169,8 @@ class OutageHandlingTests(unittest.TestCase):
                 'last_failure_signature': None,
             }
         }
+        self.plugin.unifi_clients = {}
+        self.plugin.unifi_devices = {}
         self.controller = FakeDevice()
 
     def poll_with(self, session):
@@ -227,6 +241,20 @@ class OutageHandlingTests(unittest.TestCase):
             self.plugin._mark_controller_failure(self.controller, 'Unavailable', 'timeout')
         errors = [msg for level, msg in self.plugin.logger.messages if level == logging.ERROR]
         self.assertEqual(len(errors), 1)
+
+    def test_infrastructure_dynamic_states_use_device_collection(self):
+        switch = FakeDevice(463468270, 'unifiDevice')
+        self.plugin.unifi_devices[switch.id] = [
+            {'key': 'uptime', 'value': 1234},
+            {'key': 'adopted', 'value': True},
+        ]
+
+        states = self.plugin.getDeviceStateList(switch)
+
+        keys = [state['key'] for state in states]
+        self.assertIn('controllerAvailable', keys)
+        self.assertIn('uptime', keys)
+        self.assertIn('adopted', keys)
 
 
 if __name__ == '__main__':
