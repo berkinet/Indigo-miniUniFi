@@ -86,6 +86,7 @@ class FakeDevice:
         }
         self.states = {}
         self.images = []
+        self.plugin_props_replacements = 0
 
     def updateStateOnServer(self, key, value, uiValue=None):
         self.states[key] = value
@@ -101,6 +102,7 @@ class FakeDevice:
 
     def replacePluginPropsOnServer(self, props):
         self.pluginProps = props
+        self.plugin_props_replacements += 1
 
 
 class FakeResponse:
@@ -204,6 +206,10 @@ class OutageHandlingTests(unittest.TestCase):
         self.assertFalse(self.controller.states['dataStale'])
         self.assertIn('lastSuccessfulPoll', self.controller.states)
         self.assertTrue(any('recovered after' in msg for _, msg in self.plugin.logger.messages))
+        self.assertEqual(
+            self.controller.plugin_props_replacements, 1,
+            'an unchanged controller version must not restart Indigo device communication',
+        )
         combined_logs = '\n'.join(msg for _, msg in self.plugin.logger.messages)
         self.assertNotIn('must-not-be-logged', combined_logs)
         self.assertNotIn('secret', combined_logs)
@@ -217,6 +223,11 @@ class OutageHandlingTests(unittest.TestCase):
             self.plugin.updateUniFiController(self.controller)
         self.assertIsNone(self.plugin.unifi_controllers[1]['controller_type'])
         self.assertFalse(self.plugin.unifi_controllers[1]['snapshot_authoritative'])
+
+    def test_unchanged_controller_version_does_not_replace_plugin_properties(self):
+        self.controller.pluginProps['version'] = '9.0'
+        self.poll_with(healthy_session())
+        self.assertEqual(self.controller.plugin_props_replacements, 0)
 
     def test_dependent_retains_value_but_is_explicitly_stale(self):
         self.plugin.unifi_controllers[1].update({

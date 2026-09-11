@@ -348,8 +348,8 @@ class Plugin(indigo.PluginBase):
                                        cookies=cookies, verify=ssl_verify, timeout=10.0)
                 status_payload = self._json_payload(response, 'controller status')
                 version = status_payload.get('meta', {}).get('server_version')
-                if version:
-                    new_props = device.pluginProps
+                if version and device.pluginProps.get('version') != version:
+                    new_props = dict(device.pluginProps)
                     new_props['version'] = version
                     device.replacePluginPropsOnServer(new_props)
 
