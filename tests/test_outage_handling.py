@@ -256,6 +256,44 @@ class OutageHandlingTests(unittest.TestCase):
         self.assertIn('uptime', keys)
         self.assertIn('adopted', keys)
 
+    def test_client_configuration_validation_uses_selected_client(self):
+        self.plugin.unifi_controllers[1]['sites'] = {
+            'default': {'actives': {
+                'aa:bb:cc:dd:ee:ff': {'name': 'Rick Phone', 'mac': 'aa:bb:cc:dd:ee:ff'}
+            }}
+        }
+        values = {
+            'unifi_controller': '1', 'unifi_site': 'default',
+            'address': 'aa:bb:cc:dd:ee:ff',
+        }
+
+        valid, result = self.plugin.validateDeviceConfigUi(
+            values, 'unifiWirelessClient', 2)
+
+        self.assertTrue(valid)
+        self.assertEqual(result['UniFiName'], 'Rick Phone')
+
+    def test_access_point_configuration_validation_uses_selected_device(self):
+        self.plugin.unifi_controllers[1]['sites'] = {
+            'default': {'devices': {
+                'aa:bb:cc:dd:ee:ff': {
+                    'name': 'Pool AP', 'mac': 'aa:bb:cc:dd:ee:ff',
+                    'version': '7.1.0',
+                }
+            }}
+        }
+        values = {
+            'unifi_controller': '1', 'unifi_site': 'default',
+            'address': 'aa:bb:cc:dd:ee:ff',
+        }
+
+        valid, result = self.plugin.validateDeviceConfigUi(
+            values, 'unifiAccessPoint', 3)
+
+        self.assertTrue(valid)
+        self.assertEqual(result['UniFiName'], 'Pool AP')
+        self.assertEqual(result['Version'], '7.1.0')
+
 
 if __name__ == '__main__':
     unittest.main()

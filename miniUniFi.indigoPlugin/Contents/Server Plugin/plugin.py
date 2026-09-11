@@ -735,25 +735,23 @@ class Plugin(indigo.PluginBase):
             controller = int(valuesDict['unifi_controller'])
             site = valuesDict['unifi_site']
             uClient = valuesDict['address']
-            _client_data = {}
 
             try:
-                _client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
+                client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
             except (Exception,):
                 self.logger.debug("validateDeviceConfigUi: client_data not found")
             else:
                 valuesDict['UniFiName'] = nameFromClient(client_data)
 
-        elif typeId == 'unifiDevice':
+        elif typeId in ['unifiDevice', 'unifiAccessPoint']:
             controller = int(valuesDict['unifi_controller'])
             site = valuesDict['unifi_site']
-            uClient = valuesDict['address']
-            _device_data = {}
+            uDevice = valuesDict['address']
 
             try:
-                _device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uClient]
+                device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uDevice]
             except (Exception,):
-                pass
+                self.logger.debug("validateDeviceConfigUi: device_data not found")
             else:
                 valuesDict['UniFiName'] = nameFromDevice(device_data)
                 valuesDict['Version'] = device_data.get('version', None)
