@@ -17,3 +17,16 @@ Allows for monitoring the on/off-line state of network clients on a UniFi based 
 3. Create triggers based on the on/off status of the client device.  The Wireless Client devices also have an "offline_seconds" state that can be used for delayed triggering.
 
 Does not work with controllers that have 2FA enabled.
+
+## Controller outages and presence freshness
+
+miniUniFi retains a client's last known online/offline value when its controller is
+temporarily unavailable. The retained value is explicitly marked as stale rather
+than being presented as a fresh observation. Controller and dependent devices expose:
+
+- `controllerAvailable`: whether the latest controller poll succeeded
+- `dataStale`: whether the displayed data comes from the last successful snapshot
+- `lastSuccessfulPoll`: local timestamp of the last authoritative snapshot
+
+Repeated identical outage errors are suppressed for 15 minutes by default, and one
+recovery message reports the outage duration when polling succeeds again.

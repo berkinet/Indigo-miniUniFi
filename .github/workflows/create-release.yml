@@ -2,9 +2,8 @@ name: Create Release
 
 on:
   push:
-    branches:
-      - main
-      - master
+    tags:
+      - 'v*'
 
 jobs:
   create-release:
@@ -20,31 +19,25 @@ jobs:
       - name: Extract version from Info.plist
         id: get_version
         run: |
-          VERSION=$(grep -A1 '<key>PluginVersion</key>' UKTrains.indigoPlugin/Contents/Info.plist | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+          VERSION=$(grep -A1 '<key>PluginVersion</key>' miniUniFi.indigoPlugin/Contents/Info.plist | grep '<string>' | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
-      - name: Check if release already exists
-        id: check_release
+      - name: Verify tag matches plugin version
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "Release v$VERSION already exists, skipping."
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "Release v$VERSION does not exist, will create."
+          if [ "${GITHUB_REF_NAME}" != "v${VERSION}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match PluginVersion ${VERSION}."
+            exit 1
           fi
 
       - name: Create plugin bundle zip
-        if: steps.check_release.outputs.exists == 'false'
         run: |
           VERSION="${{ steps.get_version.outputs.version }}"
-          zip -r "UKTrains.indigoPlugin.zip" "UKTrains.indigoPlugin"
-          echo "Created UKTrains.indigoPlugin.zip"
+          zip -r "miniUniFi.indigoPlugin.zip" "miniUniFi.indigoPlugin"
+          echo "Created miniUniFi.indigoPlugin.zip"
 
       - name: Create GitHub Release
-        if: steps.check_release.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.version }}
@@ -52,4 +45,4 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: UKTrains.indigoPlugin.zip
+          files: miniUniFi.indigoPlugin.zip

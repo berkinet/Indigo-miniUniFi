@@ -13,6 +13,10 @@ from datetime import datetime
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
+class ControllerRequestError(Exception):
+    """A predictable controller polling failure safe to show in Indigo logs."""
+
+
 # Indigo really doesn't like dicts with keys that start with a number or symbol...
 
 def safeKey(key):
@@ -88,6 +92,7 @@ class Plugin(indigo.PluginBase):
         self.update_needed = False
         self.last_controller = None
         self.last_site = 'default'
+        self.outageReminderInterval = float(pluginPrefs.get('outageReminderInterval', 900))
 
     def startup(self):
         self.logger.info("Starting miniUniFi")
@@ -103,7 +108,12 @@ class Plugin(indigo.PluginBase):
                     # update from UniFi Controllers
 
                     for controllerID in list(self.unifi_controllers):
-                        self.updateUniFiController(indigo.devices[controllerID])
+                        try:
+                            self.updateUniFiController(indigo.devices[controllerID])
+                        except Exception:
+                            # A controller or malformed response must never terminate
+                            # Indigo's concurrent plugin thread.
+                            self.logger.exception("Unexpected error updating UniFi controller")
 
                     # now update all the client devices  
 
@@ -135,7 +145,15 @@ class Plugin(indigo.PluginBase):
             device.replaceSharedPropsOnServer(props)
 
         if device.deviceTypeId == 'unifiController':
-            self.unifi_controllers[device.id] = {'name': device.name}  # all the associated data added during update
+            self.unifi_controllers[device.id] = {
+                'name': device.name,
+                'controller_type': None,
+                'snapshot_authoritative': False,
+                'last_success': None,
+                'outage_since': None,
+                'last_failure_log': None,
+                'last_failure_signature': None,
+            }
             self.update_needed = True
             if not self.last_controller:
                 self.last_controller = str(device.id)
@@ -155,13 +173,13 @@ class Plugin(indigo.PluginBase):
         self.logger.info(f"{device.name}: Stopping Device")
 
         if device.deviceTypeId == 'unifiController':
-            del self.unifi_controllers[device.id]
+            self.unifi_controllers.pop(device.id, None)
 
         elif device.deviceTypeId in ['unifiClient', 'unifiWirelessClient']:
-            del self.unifi_clients[device.id]
+            self.unifi_clients.pop(device.id, None)
 
-        elif device.deviceTypeId == 'unifiDevice':
-            del self.unifi_devices[device.id]
+        elif device.deviceTypeId in ['unifiDevice', 'unifiAccessPoint']:
+            self.unifi_devices.pop(device.id, None)
 
     ########################################
     #
@@ -175,6 +193,12 @@ class Plugin(indigo.PluginBase):
         HEAD request will return 200 if Unifi OS,
         if this is a Standard controller, we will get 302 (redirect) to /manage
         """
+        controller = self.unifi_controllers.setdefault(device.id, {'name': device.name})
+        if controller.get('controller_type') == 'os':
+            return True
+        if controller.get('controller_type') == 'standard':
+            return False
+
         ssl_verify = device.pluginProps.get('ssl_verify', False)
         if ssl_verify is False:
             from requests.packages.urllib3.exceptions import InsecureRequestWarning
@@ -182,203 +206,188 @@ class Plugin(indigo.PluginBase):
 
         try:
             r = requests.head(f'https://{device.pluginProps["address"]}:{device.pluginProps["port"]}', verify=ssl_verify, timeout=5.0)
+        except requests.exceptions.RequestException:
+            raise
         except Exception as err:
-            self.logger.error(f"UniFi Controller OS Check Error: {err}")
-            return False
+            raise ControllerRequestError(f"controller type check failed: {err}") from err
 
         if r.status_code == 200:
             self.logger.debug(f'{device.name}: Unifi OS controller detected')
+            controller['controller_type'] = 'os'
             return True
         if r.status_code == 302:
             self.logger.debug(f'{device.name}: Unifi Standard controller detected')
+            controller['controller_type'] = 'standard'
             return False
-        self.logger.warning(f'{device.name}: Unable to determine controller type - using Unifi Standard controller')
-        return False
+        raise ControllerRequestError(
+            f"controller type check returned HTTP {r.status_code}")
+
+    def _update_health_states(self, device, available, stale, last_success=None):
+        """Publish controller freshness without changing a client's last presence."""
+        updates = [
+            {'key': 'controllerAvailable', 'value': available},
+            {'key': 'dataStale', 'value': stale},
+        ]
+        if last_success:
+            updates.append({'key': 'lastSuccessfulPoll', 'value': last_success})
+        device.updateStatesOnServer(updates)
+
+    def _mark_controller_failure(self, device, status, detail):
+        controller = self.unifi_controllers[device.id]
+        now = time.time()
+        if controller.get('outage_since') is None:
+            controller['outage_since'] = now
+        controller['snapshot_authoritative'] = False
+        signature = f"{status}: {detail}"
+        last_log = controller.get('last_failure_log')
+        should_log = (
+            signature != controller.get('last_failure_signature') or
+            last_log is None or
+            now - last_log >= self.outageReminderInterval
+        )
+        if should_log:
+            self.logger.error(f"{device.name}: {signature}")
+            controller['last_failure_log'] = now
+            controller['last_failure_signature'] = signature
+        device.updateStateOnServer(key='status', value=status)
+        device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
+        self._update_health_states(
+            device, False, bool(controller.get('sites')), controller.get('last_success'))
+
+    def _mark_controller_success(self, device, sites):
+        controller = self.unifi_controllers[device.id]
+        now = time.time()
+        last_success = datetime.fromtimestamp(now).isoformat(timespec='seconds')
+        outage_since = controller.get('outage_since')
+        controller.update({
+            'sites': sites,
+            'snapshot_authoritative': True,
+            'last_success': last_success,
+            'outage_since': None,
+            'last_failure_log': None,
+            'last_failure_signature': None,
+        })
+        if outage_since is not None:
+            self.logger.info(
+                f"{device.name}: Controller recovered after {int(now - outage_since)} seconds")
+        device.updateStateOnServer(key='status', value='Online')
+        device.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
+        self._update_health_states(device, True, False, last_success)
+
+    def _controller_snapshot_is_authoritative(self, controller_id):
+        controller = self.unifi_controllers.get(controller_id, {})
+        return bool(controller.get('snapshot_authoritative'))
+
+    def _mark_dependent_stale(self, device, controller_id):
+        controller = self.unifi_controllers.get(controller_id, {})
+        self._update_health_states(device, False, True, controller.get('last_success'))
+        last_value = device.states.get('onOffState')
+        if last_value is not None:
+            label = 'Online' if last_value else 'Offline'
+            device.updateStateOnServer(
+                key='onOffState', value=last_value, uiValue=f'{label} (stale)')
+
+    @staticmethod
+    def _json_payload(response, operation):
+        if response.status_code != requests.codes.ok:
+            raise ControllerRequestError(f"{operation} returned HTTP {response.status_code}")
+        content_type = response.headers.get('Content-Type', '').lower()
+        if content_type and 'json' not in content_type:
+            raise ControllerRequestError(f"{operation} returned non-JSON content")
+        if not getattr(response, 'content', b'') and not getattr(response, 'text', ''):
+            raise ControllerRequestError(f"{operation} returned an empty response")
+        try:
+            payload = response.json()
+        except (ValueError, requests.exceptions.JSONDecodeError) as err:
+            raise ControllerRequestError(f"{operation} returned malformed JSON") from err
+        if not isinstance(payload, dict):
+            raise ControllerRequestError(f"{operation} returned an unexpected JSON shape")
+        return payload
+
+    @classmethod
+    def _json_data(cls, response, operation):
+        payload = cls._json_payload(response, operation)
+        if not isinstance(payload.get('data'), list):
+            raise ControllerRequestError(f"{operation} returned an unexpected JSON shape")
+        return payload['data']
 
     def updateUniFiController(self, device):
-
         self.logger.debug(f"{device.name}: Updating controller")
-
         headers = {"Accept": "application/json", "Content-Type": "application/json"}
         login_headers = {"Accept": "application/json", "Content-Type": "application/json", "referer": "/login"}
         base_url = f"https://{device.pluginProps['address']}:{device.pluginProps['port']}/"
         login_body = {"username": device.pluginProps['username'], "password": device.pluginProps['password'], 'strict': True}
         ssl_verify = device.pluginProps.get('ssl_verify', False)
 
-        with requests.Session() as session:
-
-            # set up URL templates based on controller type
+        try:
             unifi_os = self.is_unifi_os(device)
             if unifi_os:
-                login_url  = "{}api/auth/login"
-                status_url = "{}proxy/network/status"
-                sites_url  = "{}proxy/network/api/self/sites"
+                login_url, status_url = "{}api/auth/login", "{}proxy/network/status"
+                sites_url = "{}proxy/network/api/self/sites"
                 active_url = "{}proxy/network/api/s/{}/stat/sta"
                 device_url = "{}proxy/network/api/s/{}/stat/device"
             else:
-                login_url  = "{}api/login"
-                status_url = "{}status"
-                sites_url  = "{}api/self/sites"
-                active_url = "{}api/s/{}/stat/sta"
+                login_url, status_url = "{}api/login", "{}status"
+                sites_url, active_url = "{}api/self/sites", "{}api/s/{}/stat/sta"
                 device_url = "{}api/s/{}/stat/device"
 
-            try:
-                url = login_url.format(base_url)
-                response = session.post(url, headers=login_headers, json=login_body, verify=ssl_verify, timeout=5.0)
-            except Exception as err:
-                self.logger.error(f"UniFi Controller Login Connection Error: {err}")
-                device.updateStateOnServer(key='status', value="Connection Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
+            with requests.Session() as session:
+                response = session.post(login_url.format(base_url), headers=login_headers,
+                                        json=login_body, verify=ssl_verify, timeout=5.0)
+                if response.status_code != requests.codes.ok:
+                    raise ControllerRequestError(f"login returned HTTP {response.status_code}")
 
-            self.logger.debug(f"UniFi Controller Login Response: {response.text}")
+                cookies_dict = requests.utils.dict_from_cookiejar(session.cookies)
+                if unifi_os:
+                    cookies = {"TOKEN": cookies_dict.get('TOKEN')}
+                else:
+                    cookies = {"unifises": cookies_dict.get('unifises'),
+                               "csrf_token": cookies_dict.get('csrf_token')}
 
-            if response.status_code != requests.codes.ok:
-                device.updateStateOnServer(key='status', value="Login Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
+                response = session.get(status_url.format(base_url), headers=headers,
+                                       cookies=cookies, verify=ssl_verify, timeout=10.0)
+                status_payload = self._json_payload(response, 'controller status')
+                version = status_payload.get('meta', {}).get('server_version')
+                if version:
+                    new_props = device.pluginProps
+                    new_props['version'] = version
+                    device.replacePluginPropsOnServer(new_props)
 
-            device.updateStateOnServer(key='status', value="Login OK")
-            device.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
+                response = session.get(sites_url.format(base_url), headers=headers,
+                                       cookies=cookies, verify=ssl_verify, timeout=5.0)
+                site_list = self._json_data(response, 'site list')
+                sites = {}
+                for site in site_list:
+                    if not isinstance(site, dict) or not site.get('name'):
+                        raise ControllerRequestError('site list contains an invalid site')
+                    site_name = site['name']
+                    sites[site_name] = {'description': site.get('desc', site_name)}
 
-            # not sure why the session cookies weren't working for the UDMP
+                    response = session.get(active_url.format(base_url, site_name),
+                                           headers=headers, cookies=cookies,
+                                           verify=ssl_verify, timeout=5.0)
+                    clients = self._json_data(response, f'active clients for {site_name}')
+                    sites[site_name]['actives'] = {
+                        client.get('mac'): client for client in clients
+                        if isinstance(client, dict) and client.get('mac')
+                    }
 
-            cookies_dict = requests.utils.dict_from_cookiejar(session.cookies)
-            if unifi_os:
-                cookies = {"TOKEN": cookies_dict.get('TOKEN')}
-            else:
-                cookies = {"unifises": cookies_dict.get('unifises'), "csrf_token": cookies_dict.get('csrf_token')}
+                    response = session.get(device_url.format(base_url, site_name),
+                                           headers=headers, cookies=cookies,
+                                           verify=ssl_verify, timeout=5.0)
+                    devices = self._json_data(response, f'devices for {site_name}')
+                    sites[site_name]['devices'] = {
+                        item.get('mac'): item for item in devices
+                        if isinstance(item, dict) and item.get('mac')
+                    }
 
-            url = status_url.format(base_url)
-            try:
-                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=10.0)
-            except requests.exceptions.Timeout as err:
-                self.logger.error(f"UniFi Controller Status Timeout Error: {err}")
-                device.updateStateOnServer(key='status', value="Timeout Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-            except Exception as err:
-                self.logger.error(f"UniFi Controller Status Connection Error: {err}")
-                device.updateStateOnServer(key='status', value="Connection Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-
-            if response.status_code != requests.codes.ok:
-                self.logger.error(f"UniFi Controller Status Error: {response.status_code}")
-                device.updateStateOnServer(key='status', value="Status Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-
-            self.logger.debug(f"UniFi Controller Status Response: {response.text}")
-
-            try:
-                version = response.json()['meta']['server_version']
-            except (Exception,):
-                pass
-            else:
-                newProps = device.pluginProps
-                newProps['version'] = version
-                device.replacePluginPropsOnServer(newProps)
-
-            device.updateStateOnServer(key='status', value="Login OK")
-            device.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
-
-            # Get the Sites the controller handles
-
-            self.logger.debug(f"{device.name}: UniFi Controller Getting Sites")
-
-            url = sites_url.format(base_url)
-            try:
-                response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
-            except requests.exceptions.Timeout as err:
-                self.logger.error(f"UniFi Controller Get Sites Timeout Error: {err}")
-                device.updateStateOnServer(key='status', value="Timeout Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-            except Exception as err:
-                self.logger.error(f"UniFi Controller Get Sites Connection Error: {err}")
-                device.updateStateOnServer(key='status', value="Connection Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-
-            if not response.status_code == requests.codes.ok:
-                self.logger.error(f"UniFi Controller Get Sites Error: {response.status_code}")
-                device.updateStateOnServer(key='status', value="Sites Error")
-                device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                return
-
-            self.logger.debug(f"UniFi Controller Sites Response: {response}")
-
-            siteList = response.json()['data']
-            sites = {}
-            for site in siteList:
-                self.logger.threaddebug(f"Saving Site {site['name']} ({site['desc']})")
-                sites[site['name']] = {'description': site['desc']}
-
-                # Get active Clients for site
-
-                url = active_url.format(base_url, site['name'])
-                try:
-                    response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
-                except requests.exceptions.Timeout as err:
-                    self.logger.error(f"UniFi Controller Get Active Clients Timeout Error: {err}")
-                    device.updateStateOnServer(key='status', value="Timeout Error")
-                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                    return
-                except Exception as err:
-                    self.logger.error(f"UniFi Controller Get Active Clients Connection Error: {err}")
-                    device.updateStateOnServer(key='status', value="Connection Error")
-                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                    return
-
-                if not response.status_code == requests.codes.ok:
-                    self.logger.error(u"UniFi Controller Get Active Clients Error: {}".format(response.status_code))
-                    device.updateStateOnServer(key='status', value="Get Client Error")
-                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                    return
-
-                self.logger.threaddebug(f"UniFi Controller Active Clients Response: {response}")
-
-                responseList = response.json()['data']
-                actives = {}
-                for client in responseList:
-                    wired = "Wired" if client['is_wired'] else "Wireless"
-                    self.logger.threaddebug(f"Found {wired} Active Client {nameFromClient(client)}")
-                    actives[client.get('mac')] = client
-                sites[site['name']]['actives'] = actives
-
-                # Get UniFi Devices for the site
-
-                url = device_url.format(base_url, site['name'])
-                try:
-                    response = session.get(url, headers=headers, cookies=cookies, verify=ssl_verify, timeout=5.0)
-                except requests.exceptions.Timeout as err:
-                    self.logger.error(f"UniFi Controller Get Devices Timeout Error: {err}")
-                    device.updateStateOnServer(key='status', value="Timeout Error")
-                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                    return
-                except Exception as err:
-                    self.logger.error(f"UniFi Controller Get Devices Connection Error: {err}")
-                    device.updateStateOnServer(key='status', value="Connection Error")
-                    device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
-                    return
-
-                if not response.status_code == requests.codes.ok:
-                    self.logger.error(f"UniFi Controller Get Devices Error: {response.status_code}")
-                response.raise_for_status()
-
-                self.logger.threaddebug(f"UniFi Controller Devices Response: {response}")
-
-                responseList = response.json()['data']
-                uDevices = {}
-                for uDevice in responseList:
-                    self.logger.threaddebug(f"Found UniFi device {nameFromDevice(uDevice)}")
-                    uDevices[uDevice.get('mac')] = uDevice
-                sites[site['name']]['devices'] = uDevices
-
-            # all done, save the data
-
-            self.unifi_controllers[device.id]['sites'] = sites
+            self._mark_controller_success(device, sites)
+        except requests.exceptions.Timeout as err:
+            self._mark_controller_failure(device, 'Unavailable', f'timeout: {err}')
+        except requests.exceptions.RequestException as err:
+            self._mark_controller_failure(device, 'Unavailable', f'connection error: {err}')
+        except ControllerRequestError as err:
+            self._mark_controller_failure(device, 'Degraded', str(err))
 
     def updateUniFiClient(self, device):
 
@@ -389,6 +398,13 @@ class Plugin(indigo.PluginBase):
         uClient = device.address
         offline = False
         client_data = {}
+
+        if not self._controller_snapshot_is_authoritative(controller):
+            self._mark_dependent_stale(device, controller)
+            return
+
+        self._update_health_states(
+            device, True, False, self.unifi_controllers[controller].get('last_success'))
 
         try:
             client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
@@ -459,6 +475,13 @@ class Plugin(indigo.PluginBase):
         uDevice = device.address
         offline = False
         device_data = {}
+
+        if not self._controller_snapshot_is_authoritative(controller):
+            self._mark_dependent_stale(device, controller)
+            return
+
+        self._update_health_states(
+            device, True, False, self.unifi_controllers[controller].get('last_success'))
 
         try:
             device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uDevice]
@@ -816,7 +839,7 @@ class Plugin(indigo.PluginBase):
         login_headers = {"Accept": "application/json", "Content-Type": "application/json", "referer": "/login"}
         login_params = {"username": unifi_controller.pluginProps['username'], "password": unifi_controller.pluginProps['password']}
         headers = {"Accept": "*/*", "Content-Type": "application/x-www-form-urlencoded"}
-        ssl_verify = device.pluginProps.get('ssl_verify', False)
+        ssl_verify = unifi_controller.pluginProps.get('ssl_verify', False)
         site = device.pluginProps['unifi_site']
 
         with requests.Session() as session:
@@ -845,9 +868,6 @@ class Plugin(indigo.PluginBase):
                 unifi_controller.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
                 return
 
-            self.logger.threaddebug(f"{device.name}: Controller Login Response: {response.text}")
-            self.logger.threaddebug(f"{device.name}: Controller Login Headers: {response.headers}")
-            self.logger.threaddebug(f"{device.name}: Controller Login Cookies: {response.cookies}")
             unifi_controller.updateStateOnServer(key='status', value="Login OK")
             unifi_controller.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
 
@@ -863,8 +883,6 @@ class Plugin(indigo.PluginBase):
 
             url = cmd_url.format(base_url, site)
             self.logger.threaddebug(f"{device.name}: Post cmd url: {url}")
-            self.logger.threaddebug(f"{device.name}: Post cmd headers: {headers}")
-            self.logger.threaddebug(f"{device.name}: Post cmd cookies: {cookies}")
             self.logger.threaddebug(f"{device.name}: Post cmd params: {params}")
             try:
                 response = session.post(url, headers=headers, cookies=cookies, json=params, verify=ssl_verify, timeout=5.0)
@@ -879,7 +897,5 @@ class Plugin(indigo.PluginBase):
                 unifi_controller.updateStateOnServer(key='status', value="Post Error")
                 unifi_controller.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
 
-            self.logger.threaddebug(f"{device.name}: Controller Post Response: {response.text}")
-            self.logger.threaddebug(f"{device.name}: Controller Post Headers: {response.headers}")
-            self.logger.threaddebug(f"{device.name}: Controller Post Cookies: {response.cookies}")
-
+            self.logger.threaddebug(
+                f"{device.name}: Controller command completed with HTTP {response.status_code}")

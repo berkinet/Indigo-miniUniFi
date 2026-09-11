@@ -30,6 +30,9 @@
                 <TriggerLabel>Controller Status</TriggerLabel>
                 <ControlPageLabel>Controller Status</ControlPageLabel>
             </State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
         </States>
         <UiDisplayStateId>status</UiDisplayStateId>
      </Device>
@@ -67,6 +70,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
         </States>
     </Device>
 
@@ -103,6 +109,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
         </States>
   </Device>
 
@@ -133,6 +142,11 @@
                 <Description>Exclude from SQL Logging</Description>
             </Field>
         </ConfigUI>
+        <States>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+        </States>
     </Device>
 
     <Device id="unifiAccessPoint" type="sensor">
@@ -169,6 +183,11 @@
                 <Description>Exclude from SQL Logging</Description>
             </Field>
         </ConfigUI>
+        <States>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+        </States>
     </Device>
 
 </Devices>
