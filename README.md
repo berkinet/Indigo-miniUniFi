@@ -34,3 +34,6 @@ than being presented as a fresh observation. Controller and dependent devices ex
 
 Repeated identical outage errors are suppressed for 15 minutes by default, and one
 recovery message reports the outage duration when polling succeeds again.
+
+The plugin uses the `requests` library supplied by Indigo and has no separately
+installed Python package requirements.
