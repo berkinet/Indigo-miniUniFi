@@ -30,9 +30,9 @@
                 <TriggerLabel>Controller Status</TriggerLabel>
                 <ControlPageLabel>Controller Status</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
         <UiDisplayStateId>status</UiDisplayStateId>
      </Device>
@@ -70,9 +70,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
     </Device>
 
@@ -109,9 +109,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
   </Device>
 
@@ -143,9 +143,9 @@
             </Field>
         </ConfigUI>
         <States>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
     </Device>
 
@@ -184,9 +184,9 @@
             </Field>
         </ConfigUI>
         <States>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType></State>
-            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
+            <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
     </Device>
 
