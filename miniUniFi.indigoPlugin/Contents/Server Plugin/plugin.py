@@ -149,6 +149,8 @@ class Plugin(indigo.PluginBase):
                 'name': device.name,
                 'controller_type': None,
                 'snapshot_authoritative': False,
+                'console_available': False,
+                'network_app_available': False,
                 'last_success': None,
                 'outage_since': None,
                 'last_failure_log': None,
@@ -222,22 +224,30 @@ class Plugin(indigo.PluginBase):
         raise ControllerRequestError(
             f"controller type check returned HTTP {r.status_code}")
 
-    def _update_health_states(self, device, available, stale, last_success=None):
+    def _update_health_states(self, device, console_available,
+                              network_app_available, stale, last_success=None):
         """Publish controller freshness without changing a client's last presence."""
         updates = [
-            {'key': 'controllerAvailable', 'value': available},
+            {'key': 'consoleAvailable', 'value': console_available},
+            {'key': 'networkAppAvailable', 'value': network_app_available},
+            # Backward-compatible alias for automations created before 2026.0.1.7.
+            {'key': 'controllerAvailable', 'value': network_app_available},
             {'key': 'dataStale', 'value': stale},
         ]
         if last_success:
             updates.append({'key': 'lastSuccessfulPoll', 'value': last_success})
         device.updateStatesOnServer(updates)
 
-    def _mark_controller_failure(self, device, status, detail):
+    def _mark_controller_failure(self, device, status, detail,
+                                 console_available=False,
+                                 network_app_available=False):
         controller = self.unifi_controllers[device.id]
         now = time.time()
         if controller.get('outage_since') is None:
             controller['outage_since'] = now
         controller['snapshot_authoritative'] = False
+        controller['console_available'] = console_available
+        controller['network_app_available'] = network_app_available
         signature = f"{status}: {detail}"
         last_log = controller.get('last_failure_log')
         should_log = (
@@ -252,7 +262,8 @@ class Plugin(indigo.PluginBase):
         device.updateStateOnServer(key='status', value=status)
         device.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
         self._update_health_states(
-            device, False, bool(controller.get('sites')), controller.get('last_success'))
+            device, console_available, network_app_available,
+            bool(controller.get('sites')), controller.get('last_success'))
 
     def _mark_controller_success(self, device, sites):
         controller = self.unifi_controllers[device.id]
@@ -262,6 +273,8 @@ class Plugin(indigo.PluginBase):
         controller.update({
             'sites': sites,
             'snapshot_authoritative': True,
+            'console_available': True,
+            'network_app_available': True,
             'last_success': last_success,
             'outage_since': None,
             'last_failure_log': None,
@@ -272,7 +285,7 @@ class Plugin(indigo.PluginBase):
                 f"{device.name}: Controller recovered after {int(now - outage_since)} seconds")
         device.updateStateOnServer(key='status', value='Online')
         device.updateStateImageOnServer(indigo.kStateImageSel.SensorOn)
-        self._update_health_states(device, True, False, last_success)
+        self._update_health_states(device, True, True, False, last_success)
 
     def _controller_snapshot_is_authoritative(self, controller_id):
         controller = self.unifi_controllers.get(controller_id, {})
@@ -280,7 +293,10 @@ class Plugin(indigo.PluginBase):
 
     def _mark_dependent_stale(self, device, controller_id):
         controller = self.unifi_controllers.get(controller_id, {})
-        self._update_health_states(device, False, True, controller.get('last_success'))
+        self._update_health_states(
+            device, controller.get('console_available', False),
+            controller.get('network_app_available', False), True,
+            controller.get('last_success'))
         last_value = device.states.get('onOffState')
         if last_value is not None:
             label = 'Online' if last_value else 'Offline'
@@ -318,6 +334,8 @@ class Plugin(indigo.PluginBase):
         base_url = f"https://{device.pluginProps['address']}:{device.pluginProps['port']}/"
         login_body = {"username": device.pluginProps['username'], "password": device.pluginProps['password'], 'strict': True}
         ssl_verify = device.pluginProps.get('ssl_verify', False)
+        console_available = False
+        network_app_responding = False
 
         try:
             unifi_os = self.is_unifi_os(device)
@@ -334,6 +352,7 @@ class Plugin(indigo.PluginBase):
             with requests.Session() as session:
                 response = session.post(login_url.format(base_url), headers=login_headers,
                                         json=login_body, verify=ssl_verify, timeout=5.0)
+                console_available = True
                 if response.status_code != requests.codes.ok:
                     raise ControllerRequestError(f"login returned HTTP {response.status_code}")
 
@@ -347,6 +366,7 @@ class Plugin(indigo.PluginBase):
                 response = session.get(status_url.format(base_url), headers=headers,
                                        cookies=cookies, verify=ssl_verify, timeout=10.0)
                 status_payload = self._json_payload(response, 'controller status')
+                network_app_responding = True
                 version = status_payload.get('meta', {}).get('server_version')
                 if version and device.pluginProps.get('version') != version:
                     new_props = dict(device.pluginProps)
@@ -383,11 +403,25 @@ class Plugin(indigo.PluginBase):
 
             self._mark_controller_success(device, sites)
         except requests.exceptions.Timeout as err:
-            self._mark_controller_failure(device, 'Unavailable', f'timeout: {err}')
+            status = ('Network App Temporarily Unavailable'
+                      if console_available else 'Console Unavailable')
+            self._mark_controller_failure(
+                device, status, f'timeout: {err}', console_available)
         except requests.exceptions.RequestException as err:
-            self._mark_controller_failure(device, 'Unavailable', f'connection error: {err}')
+            status = ('Network App Temporarily Unavailable'
+                      if console_available else 'Console Unavailable')
+            self._mark_controller_failure(
+                device, status, f'connection error: {err}', console_available)
         except ControllerRequestError as err:
-            self._mark_controller_failure(device, 'Degraded', str(err))
+            recovering = (
+                network_app_responding and
+                self.unifi_controllers[device.id].get('outage_since') is not None
+            )
+            status = ('Recovering' if recovering else
+                      'Network App Temporarily Unavailable' if console_available else
+                      'Console Unavailable')
+            self._mark_controller_failure(
+                device, status, str(err), console_available)
 
     def updateUniFiClient(self, device):
 
@@ -404,7 +438,8 @@ class Plugin(indigo.PluginBase):
             return
 
         self._update_health_states(
-            device, True, False, self.unifi_controllers[controller].get('last_success'))
+            device, True, True, False,
+            self.unifi_controllers[controller].get('last_success'))
 
         try:
             client_data = self.unifi_controllers[controller]['sites'][site]['actives'][uClient]
@@ -481,7 +516,8 @@ class Plugin(indigo.PluginBase):
             return
 
         self._update_health_states(
-            device, True, False, self.unifi_controllers[controller].get('last_success'))
+            device, True, True, False,
+            self.unifi_controllers[controller].get('last_success'))
 
         try:
             device_data = self.unifi_controllers[controller]['sites'][site]['devices'][uDevice]

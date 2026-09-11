@@ -30,7 +30,9 @@
                 <TriggerLabel>Controller Status</TriggerLabel>
                 <ControlPageLabel>Controller Status</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="consoleAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Console Available</TriggerLabel><ControlPageLabel>Console Available</ControlPageLabel></State>
+            <State id="networkAppAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Network App Available</TriggerLabel><ControlPageLabel>Network App Available</ControlPageLabel></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available (Legacy)</TriggerLabel><ControlPageLabel>Controller Available (Legacy)</ControlPageLabel></State>
             <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
             <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
@@ -70,7 +72,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="consoleAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Console Available</TriggerLabel><ControlPageLabel>Console Available</ControlPageLabel></State>
+            <State id="networkAppAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Network App Available</TriggerLabel><ControlPageLabel>Network App Available</ControlPageLabel></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available (Legacy)</TriggerLabel><ControlPageLabel>Controller Available (Legacy)</ControlPageLabel></State>
             <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
             <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
@@ -109,7 +113,9 @@
                 <TriggerLabel>Seconds Offline</TriggerLabel>
                 <ControlPageLabel>Seconds Offline</ControlPageLabel>
             </State>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="consoleAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Console Available</TriggerLabel><ControlPageLabel>Console Available</ControlPageLabel></State>
+            <State id="networkAppAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Network App Available</TriggerLabel><ControlPageLabel>Network App Available</ControlPageLabel></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available (Legacy)</TriggerLabel><ControlPageLabel>Controller Available (Legacy)</ControlPageLabel></State>
             <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
             <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
@@ -143,7 +149,9 @@
             </Field>
         </ConfigUI>
         <States>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="consoleAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Console Available</TriggerLabel><ControlPageLabel>Console Available</ControlPageLabel></State>
+            <State id="networkAppAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Network App Available</TriggerLabel><ControlPageLabel>Network App Available</ControlPageLabel></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available (Legacy)</TriggerLabel><ControlPageLabel>Controller Available (Legacy)</ControlPageLabel></State>
             <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
             <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>
@@ -184,7 +192,9 @@
             </Field>
         </ConfigUI>
         <States>
-            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available</TriggerLabel><ControlPageLabel>Controller Available</ControlPageLabel></State>
+            <State id="consoleAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Console Available</TriggerLabel><ControlPageLabel>Console Available</ControlPageLabel></State>
+            <State id="networkAppAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Network App Available</TriggerLabel><ControlPageLabel>Network App Available</ControlPageLabel></State>
+            <State id="controllerAvailable" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Controller Available (Legacy)</TriggerLabel><ControlPageLabel>Controller Available (Legacy)</ControlPageLabel></State>
             <State id="dataStale" readonly="true"><ValueType>Boolean</ValueType><TriggerLabel>Data Stale</TriggerLabel><ControlPageLabel>Data Stale</ControlPageLabel></State>
             <State id="lastSuccessfulPoll" readonly="true"><ValueType>String</ValueType><TriggerLabel>Last Successful Poll</TriggerLabel><ControlPageLabel>Last Successful Poll</ControlPageLabel></State>
         </States>

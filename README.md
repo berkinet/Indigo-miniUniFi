@@ -28,7 +28,9 @@ miniUniFi retains a client's last known online/offline value when its controller
 temporarily unavailable. The retained value is explicitly marked as stale rather
 than being presented as a fresh observation. Controller and dependent devices expose:
 
-- `controllerAvailable`: whether the latest controller poll succeeded
+- `consoleAvailable`: whether the CloudKey/UniFi OS console responded
+- `networkAppAvailable`: whether Network produced a complete authoritative snapshot
+- `controllerAvailable`: legacy alias for `networkAppAvailable`
 - `dataStale`: whether the displayed data comes from the last successful snapshot
 - `lastSuccessfulPoll`: local timestamp of the last authoritative snapshot
 

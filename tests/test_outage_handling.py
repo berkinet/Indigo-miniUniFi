@@ -85,11 +85,13 @@ class FakeDevice:
             'unifi_site': 'default',
         }
         self.states = {}
+        self.state_history = []
         self.images = []
         self.plugin_props_replacements = 0
 
     def updateStateOnServer(self, key, value, uiValue=None):
         self.states[key] = value
+        self.state_history.append((key, value))
         if uiValue is not None:
             self.states[f'{key}.ui'] = uiValue
 
@@ -213,6 +215,20 @@ class OutageHandlingTests(unittest.TestCase):
         combined_logs = '\n'.join(msg for _, msg in self.plugin.logger.messages)
         self.assertNotIn('must-not-be-logged', combined_logs)
         self.assertNotIn('secret', combined_logs)
+        statuses = [value for key, value in self.controller.state_history if key == 'status']
+        self.assertIn('Network App Temporarily Unavailable', statuses)
+        self.assertIn('Console Unavailable', statuses)
+        self.assertIn('Recovering', statuses)
+
+    def test_http_failure_distinguishes_console_from_network_app(self):
+        self.plugin.unifi_controllers[1]['sites'] = {'default': {}}
+        self.poll_with(FakeSession(FakeResponse(payload={}), [FakeResponse(status=502)]))
+        self.assertEqual(
+            self.controller.states['status'], 'Network App Temporarily Unavailable')
+        self.assertTrue(self.controller.states['consoleAvailable'])
+        self.assertFalse(self.controller.states['networkAppAvailable'])
+        self.assertFalse(self.controller.states['controllerAvailable'])
+        self.assertTrue(self.controller.states['dataStale'])
 
     def test_failed_detection_does_not_guess_or_cache_controller_type(self):
         self.plugin.unifi_controllers[1]['controller_type'] = None
