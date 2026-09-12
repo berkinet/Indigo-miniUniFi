@@ -13,6 +13,7 @@ PLUGIN_PATH = (
     pathlib.Path(__file__).parents[1]
     / 'miniUniFi.indigoPlugin/Contents/Server Plugin/plugin.py'
 )
+sys.path.insert(0, str(PLUGIN_PATH.parent))
 
 
 class FakePluginBase:

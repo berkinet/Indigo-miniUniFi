@@ -9,6 +9,7 @@ import logging
 import json
 
 from datetime import datetime
+from state_mapping import dict_to_states
 
 requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
@@ -17,33 +18,11 @@ class ControllerRequestError(Exception):
     """A predictable controller polling failure safe to show in Indigo logs."""
 
 
-# Indigo really doesn't like dicts with keys that start with a number or symbol...
-
-def safeKey(key):
-    if not key[0].isalpha():
-        return f'sk{key.strip()}'
-    else:
-        return key.strip()
-
-# functions for converting lists and dicts into Indigo states
-
-def dict_to_states(prefix, the_dict, states_list):
-    for key in the_dict:
-        if isinstance(the_dict[key], list):
-            list_to_states(f"{prefix}{key}_", the_dict[key], states_list)
-        elif isinstance(the_dict[key], dict):
-            dict_to_states(f"{prefix}{key}_", the_dict[key], states_list)
-        elif the_dict[key]:
-            states_list.append({'key': safeKey(f"{prefix}{key.strip()}"), 'value': the_dict[key]})
-
-def list_to_states(prefix, the_list, states_list):
-    for i in range(len(the_list)):
-        if isinstance(the_list[i], list):
-            list_to_states(f"{prefix}{i}_", the_list[i], states_list)
-        elif isinstance(the_list[i], dict):
-            dict_to_states(f"{prefix}{i}_", the_list[i], states_list)
-        else:
-            states_list.append({'key': safeKey(f"{prefix}{i}"), 'value': the_list[i]})
+STATIC_STATE_KEYS = {
+    'onOffState', 'offline_seconds', 'consoleAvailable',
+    'networkAppAvailable', 'controllerAvailable', 'dataStale',
+    'lastSuccessfulPoll', 'status',
+}
 
 
 UniFiTypes = {
@@ -452,7 +431,8 @@ class Plugin(indigo.PluginBase):
 
             states_list = []
             if client_data:
-                dict_to_states("", client_data, states_list)
+                dict_to_states(
+                    "", client_data, states_list, reserved_keys=STATIC_STATE_KEYS)
 
             self.unifi_clients[device.id] = states_list
             device.stateListOrDisplayStateIdChanged()
@@ -538,7 +518,8 @@ class Plugin(indigo.PluginBase):
 
             states_list = []
             if device_data:
-                dict_to_states(u"", device_data, states_list)
+                dict_to_states(
+                    u"", device_data, states_list, reserved_keys=STATIC_STATE_KEYS)
 
             self.unifi_devices[device.id] = states_list
             device.stateListOrDisplayStateIdChanged()

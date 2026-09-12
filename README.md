@@ -39,3 +39,8 @@ recovery message reports the outage duration when polling succeeds again.
 
 The plugin uses the `requests` library supplied by Indigo and has no separately
 installed Python package requirements.
+
+Dynamic UniFi values are flattened through a deterministic state mapper. It retains
+meaningful false and zero values, converts punctuation to Indigo-safe identifiers,
+handles empty API keys, protects static plugin states, and gives colliding paths
+stable suffixes.
