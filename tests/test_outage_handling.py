@@ -231,6 +231,38 @@ class OutageHandlingTests(unittest.TestCase):
         self.assertFalse(self.controller.states['controllerAvailable'])
         self.assertTrue(self.controller.states['dataStale'])
 
+    def test_network_unreachable_is_reported_without_library_details(self):
+        error = requests.exceptions.ConnectionError(
+            "HTTPSConnectionPool(host='192.168.5.5', port=443): Max retries "
+            "exceeded (Caused by NewConnectionError('<HTTPSConnection object at "
+            "0x10cdd1810>: [Errno 51] Network is unreachable'))")
+
+        self.poll_with(FakeSession(error))
+
+        errors = [msg for level, msg in self.plugin.logger.messages if level == logging.ERROR]
+        self.assertEqual(
+            errors, ['Test Controller: Console Unavailable: network unreachable'])
+        self.assertNotIn('HTTPSConnectionPool', errors[0])
+        self.assertNotIn('0x10cdd1810', errors[0])
+
+    def test_transport_error_summaries_cover_common_failures(self):
+        cases = [
+            (requests.exceptions.Timeout('timed out'), 'connection timed out'),
+            (requests.exceptions.SSLError('certificate verify failed'),
+             'TLS connection failed'),
+            (requests.exceptions.ConnectionError('[Errno 61] Connection refused'),
+             'connection refused'),
+            (requests.exceptions.ConnectionError(
+                "[Errno 49] Can't assign requested address"),
+             'local network interface unavailable'),
+            (requests.exceptions.ConnectionError('name or service not known'),
+             'name resolution failed'),
+            (requests.exceptions.ConnectionError('socket closed'), 'connection failed'),
+        ]
+        for error, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(plugin_module.request_error_summary(error), expected)
+
     def test_failed_detection_does_not_guess_or_cache_controller_type(self):
         self.plugin.unifi_controllers[1]['controller_type'] = None
         with mock.patch.object(

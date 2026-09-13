@@ -18,6 +18,35 @@ class ControllerRequestError(Exception):
     """A predictable controller polling failure safe to show in Indigo logs."""
 
 
+def request_error_summary(error):
+    """Return a concise, stable description of a requests transport failure.
+
+    requests/urllib3 exception strings contain implementation details, repeated
+    URLs, and object memory addresses.  Those made a brief site-wide network outage
+    look like a miniUniFi traceback.  Classify the useful cause for the normal log
+    while keeping outage handling independent of urllib3's nested exception types.
+    """
+    message = str(error).lower()
+    if isinstance(error, requests.exceptions.Timeout) or 'timed out' in message:
+        return 'connection timed out'
+    if isinstance(error, requests.exceptions.SSLError):
+        return 'TLS connection failed'
+    if ('network is unreachable' in message or 'no route to host' in message or
+            'errno 51' in message or 'errno 65' in message or 'errno 101' in message):
+        return 'network unreachable'
+    if "can't assign requested address" in message or 'errno 49' in message:
+        return 'local network interface unavailable'
+    if 'connection refused' in message or 'errno 61' in message or 'errno 111' in message:
+        return 'connection refused'
+    if ('name or service not known' in message or
+            'nodename nor servname provided' in message or
+            'temporary failure in name resolution' in message):
+        return 'name resolution failed'
+    if isinstance(error, requests.exceptions.ConnectionError):
+        return 'connection failed'
+    return 'request failed'
+
+
 STATIC_STATE_KEYS = {
     'onOffState', 'offline_seconds', 'consoleAvailable',
     'networkAppAvailable', 'controllerAvailable', 'dataStale',
@@ -385,12 +414,12 @@ class Plugin(indigo.PluginBase):
             status = ('Network App Temporarily Unavailable'
                       if console_available else 'Console Unavailable')
             self._mark_controller_failure(
-                device, status, f'timeout: {err}', console_available)
+                device, status, request_error_summary(err), console_available)
         except requests.exceptions.RequestException as err:
             status = ('Network App Temporarily Unavailable'
                       if console_available else 'Console Unavailable')
             self._mark_controller_failure(
-                device, status, f'connection error: {err}', console_available)
+                device, status, request_error_summary(err), console_available)
         except ControllerRequestError as err:
             recovering = (
                 network_app_responding and
@@ -875,7 +904,8 @@ class Plugin(indigo.PluginBase):
             try:
                 response = session.post(login_url, headers=login_headers, json=login_params, verify=ssl_verify, timeout=5.0)
             except Exception as err:
-                self.logger.error(f"UniFi Controller Login Connection Error: {err}")
+                self.logger.error(
+                    f"{unifi_controller.name}: Login {request_error_summary(err)}")
                 unifi_controller.updateStateOnServer(key='status', value="Connection Error")
                 unifi_controller.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
                 return
@@ -904,7 +934,8 @@ class Plugin(indigo.PluginBase):
             try:
                 response = session.post(url, headers=headers, cookies=cookies, json=params, verify=ssl_verify, timeout=5.0)
             except Exception as err:
-                self.logger.error(f"UniFi Controller Post Error: {err}")
+                self.logger.error(
+                    f"{unifi_controller.name}: Command {request_error_summary(err)}")
                 unifi_controller.updateStateOnServer(key='status', value="Post Error")
                 unifi_controller.updateStateImageOnServer(indigo.kStateImageSel.SensorTripped)
                 return
