@@ -248,7 +248,8 @@ class Plugin(indigo.PluginBase):
 
     def _mark_controller_failure(self, device, status, detail,
                                  console_available=False,
-                                 network_app_available=False):
+                                 network_app_available=False,
+                                 error_severity=False):
         controller = self.unifi_controllers[device.id]
         now = time.time()
         if controller.get('outage_since') is None:
@@ -264,7 +265,11 @@ class Plugin(indigo.PluginBase):
             now - last_log >= self.outageReminderInterval
         )
         if should_log:
-            self.logger.error(f"{device.name}: {signature}")
+            # Network loss, controller restarts, and 502/503 recovery responses are
+            # expected operational conditions.  Report them as warnings like other
+            # resilient Indigo plugins; reserve Error for failures needing action.
+            log_method = self.logger.error if error_severity else self.logger.warning
+            log_method(f"{device.name}: {signature}")
             controller['last_failure_log'] = now
             controller['last_failure_signature'] = signature
         device.updateStateOnServer(key='status', value=status)
@@ -428,8 +433,14 @@ class Plugin(indigo.PluginBase):
             status = ('Recovering' if recovering else
                       'Network App Temporarily Unavailable' if console_available else
                       'Console Unavailable')
+            detail = str(err)
+            authentication_failure = (
+                detail.startswith('login returned HTTP 401') or
+                detail.startswith('login returned HTTP 403')
+            )
             self._mark_controller_failure(
-                device, status, str(err), console_available)
+                device, status, detail, console_available,
+                error_severity=authentication_failure)
 
     def updateUniFiClient(self, device):
 

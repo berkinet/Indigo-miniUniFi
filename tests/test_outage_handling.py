@@ -240,10 +240,21 @@ class OutageHandlingTests(unittest.TestCase):
         self.poll_with(FakeSession(error))
 
         errors = [msg for level, msg in self.plugin.logger.messages if level == logging.ERROR]
+        warnings = [msg for level, msg in self.plugin.logger.messages if level == logging.WARNING]
+        self.assertEqual(errors, [])
         self.assertEqual(
-            errors, ['Test Controller: Console Unavailable: network unreachable'])
-        self.assertNotIn('HTTPSConnectionPool', errors[0])
-        self.assertNotIn('0x10cdd1810', errors[0])
+            warnings, ['Test Controller: Console Unavailable: network unreachable'])
+        self.assertNotIn('HTTPSConnectionPool', warnings[0])
+        self.assertNotIn('0x10cdd1810', warnings[0])
+
+    def test_authentication_rejection_remains_an_error(self):
+        self.poll_with(FakeSession(FakeResponse(status=401)))
+        errors = [msg for level, msg in self.plugin.logger.messages if level == logging.ERROR]
+        self.assertEqual(
+            errors,
+            ['Test Controller: Network App Temporarily Unavailable: '
+             'login returned HTTP 401'],
+        )
 
     def test_transport_error_summaries_cover_common_failures(self):
         cases = [
@@ -299,8 +310,9 @@ class OutageHandlingTests(unittest.TestCase):
         with mock.patch.object(plugin_module.time, 'time', side_effect=[1000, 1001, 1010]):
             self.plugin._mark_controller_failure(self.controller, 'Unavailable', 'timeout')
             self.plugin._mark_controller_failure(self.controller, 'Unavailable', 'timeout')
-        errors = [msg for level, msg in self.plugin.logger.messages if level == logging.ERROR]
-        self.assertEqual(len(errors), 1)
+        warnings = [msg for level, msg in self.plugin.logger.messages
+                    if level == logging.WARNING]
+        self.assertEqual(len(warnings), 1)
 
     def test_infrastructure_dynamic_states_use_device_collection(self):
         switch = FakeDevice(463468270, 'unifiDevice')
